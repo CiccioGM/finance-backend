@@ -11,12 +11,14 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 5000;
 
+// Connessione a MongoDB
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 }).then(() => console.log('✅ MongoDB connesso'))
-  .catch(err => console.error('❌ Errore connessione Mongo', err));
+  .catch(err => console.error('❌ Errore connessione Mongo:', err));
 
+// Rotte API
 app.get('/api/transactions', async (req, res) => {
   const txs = await Transaction.find().sort({ date: -1 });
   res.json(txs);

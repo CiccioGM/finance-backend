@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
 import Transaction from "./models/Transaction.js";
+import categoriesRoutes from "./routes/categories.js";
+app.use("/api/categories", categoriesRoutes);
 
 dotenv.config();
 const app = express();

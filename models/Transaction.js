@@ -1,11 +1,19 @@
+// models/Transaction.js
 import mongoose from "mongoose";
 
 const transactionSchema = new mongoose.Schema({
   date: { type: Date, required: true },
-  description: { type: String },
+  description: { type: String, default: "" },
   amount: { type: Number, required: true },
-  category: { type: mongoose.Schema.Types.ObjectId, ref: "Category" },
+  // category is a reference to Category document
+  category: { type: mongoose.Schema.Types.ObjectId, ref: "Category", required: false },
+  account: { type: String, default: "Default" },
+  method: { type: String, default: "Card" },
+}, {
+  timestamps: true,
 });
 
-export default mongoose.models.Transaction ||
-  mongoose.model("Transaction", transactionSchema);
+// optional: index by date for faster queries by range
+transactionSchema.index({ date: -1 });
+
+export default mongoose.model("Transaction", transactionSchema);

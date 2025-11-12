@@ -1,16 +1,11 @@
 import mongoose from "mongoose";
 
-const transactionSchema = new mongoose.Schema(
-  {
-    date: { type: Date, required: true },
-    description: { type: String, default: "" },
-    category: { type: String, default: "Uncategorized" },
-    amount: { type: Number, required: true },
-    account: { type: String, default: "Default" },
-    method: { type: String, default: "Card" }
-  },
-  { timestamps: true }
-);
+const transactionSchema = new mongoose.Schema({
+  date: { type: Date, required: true },
+  description: { type: String },
+  amount: { type: Number, required: true },
+  category: { type: mongoose.Schema.Types.ObjectId, ref: "Category" },
+});
 
 export default mongoose.models.Transaction ||
   mongoose.model("Transaction", transactionSchema);

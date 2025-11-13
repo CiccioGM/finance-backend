@@ -5,8 +5,8 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-  "migrate:categories:dry": "node scripts/migrate-full-categories.js --dry",
-  "migrate:categories:apply": "node scripts/migrate-full-categories.js --apply"
+    "migrate:categories:dry": "node scripts/migrate-full-categories.js --dry",
+    "migrate:categories:apply": "node scripts/migrate-full-categories.js --apply"
 },
   "dependencies": {
     "cors": "^2.8.5",

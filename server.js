@@ -5,6 +5,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import transactionsRoutes from "./routes/transactions.js";
 import categoriesRoutes from "./routes/categories.js";
+import adminMigrationRoute from "./routes/adminMigrationRoute.js";
 
 dotenv.config();
 const app = express();
@@ -31,6 +32,7 @@ app.get("/", (req, res) => res.send("Finance Backend API"));
 
 app.use("/api/transactions", transactionsRoutes);
 app.use("/api/categories", categoriesRoutes);
+app.use("/api/admin", adminMigrationRoute);
 
 // health
 app.get("/api/health", (req, res) => res.json({ ok: true }));

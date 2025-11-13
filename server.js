@@ -6,7 +6,6 @@ import dotenv from "dotenv";
 
 import transactionRoutes from "./routes/transactionRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
-import adminMigrationRoute from "./routes/adminMigrationRoute.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 
 dotenv.config();
@@ -38,9 +37,6 @@ app.use("/api/categories", categoryRoutes);
 
 // Dashboard routes
 app.use("/api/dashboard", dashboardRoutes);
-
-// Rotta di amministrazione temporanea (migrazione)
-app.use("/api/admin", adminMigrationRoute);
 
 // Rotta di test (ping)
 app.get("/", (req, res) => {

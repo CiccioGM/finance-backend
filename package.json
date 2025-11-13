@@ -5,8 +5,9 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "node server.js"
-  },
+  "migrate:categories:dry": "node scripts/migrate-full-categories.js --dry",
+  "migrate:categories:apply": "node scripts/migrate-full-categories.js --apply"
+},
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",

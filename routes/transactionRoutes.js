@@ -7,22 +7,79 @@ import mongoose from "mongoose";
 const router = express.Router();
 
 /**
+ * Helper: restituisce l'id stringa se value rappresenta un ObjectId valido,
+ * oppure null se non è un ObjectId.
+ */
+function extractObjectIdString(value) {
+  if (!value) return null;
+  // se è già ObjectId
+  if (value instanceof mongoose.Types.ObjectId) return String(value);
+  // se è un oggetto { _id: ... } o { $oid: "..." }
+  if (typeof value === "object") {
+    if (value._id && mongoose.Types.ObjectId.isValid(String(value._id))) return String(value._id);
+    if (value.$oid && mongoose.Types.ObjectId.isValid(String(value.$oid))) return String(value.$oid);
+    return null;
+  }
+  // se è stringa, verifica validità ObjectId
+  if (typeof value === "string" && mongoose.Types.ObjectId.isValid(value)) return value;
+  return null;
+}
+
+/**
  * GET /api/transactions
- * Query params: from, to, limit, category
+ * q params: from, to, limit, category
+ * This route now fetches txs without populate, then populates only valid ObjectId categories.
  */
 router.get("/", async (req, res) => {
   try {
     const q = {};
     if (req.query.from) q.date = { ...q.date, $gte: new Date(req.query.from) };
     if (req.query.to) q.date = { ...q.date, $lte: new Date(req.query.to) };
+
+    // support filter by category: if query param is an ObjectId string, use it,
+    // otherwise filter by string equality (legacy)
     if (req.query.category) {
       if (mongoose.Types.ObjectId.isValid(req.query.category)) q.category = mongoose.Types.ObjectId(req.query.category);
       else q.category = req.query.category;
     }
 
-    const txs = await Transaction.find(q).sort({ date: -1 }).populate({ path: "category", model: Category });
-    res.json(txs);
+    // get transactions *without* populate
+    const txs = await Transaction.find(q).sort({ date: -1 }).lean().exec();
+
+    // collect unique valid ObjectId strings from tx.category fields
+    const objIds = new Set();
+    for (const t of txs) {
+      const oid = extractObjectIdString(t.category);
+      if (oid) objIds.add(oid);
+    }
+
+    let categoryMap = {};
+    if (objIds.size > 0) {
+      const idsArray = Array.from(objIds).map(id => mongoose.Types.ObjectId(id));
+      const cats = await Category.find({ _id: { $in: idsArray } }).lean().exec();
+      categoryMap = cats.reduce((acc, c) => {
+        acc[String(c._id)] = c;
+        return acc;
+      }, {});
+    }
+
+    // attach populated category objects only for valid ObjectId categories,
+    // otherwise leave the original value (string or null)
+    const result = txs.map(t => {
+      const oid = extractObjectIdString(t.category);
+      if (oid && categoryMap[oid]) {
+        t.category = categoryMap[oid];
+      } else {
+        // keep as-is (string, null, or an object we couldn't resolve)
+        // optionally normalize { $oid: "..." } to string
+        if (t.category && typeof t.category === "object" && t.category.$oid) t.category = t.category.$oid;
+      }
+      return t;
+    });
+
+    res.json(result);
   } catch (err) {
+    console.error("GET /api/transactions error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -41,16 +98,27 @@ router.post("/", async (req, res) => {
       category: req.body.category ?? null
     };
 
-    // if category provided as string ObjectId convert
+    // if category provided as string ObjectId convert to ObjectId
     if (payload.category && typeof payload.category === "string" && mongoose.Types.ObjectId.isValid(payload.category)) {
       payload.category = mongoose.Types.ObjectId(payload.category);
     }
 
     const tx = new Transaction(payload);
     await tx.save();
-    await tx.populate({ path: "category", model: Category });
-    res.status(201).json(tx);
+
+    // try populate for response if category was ObjectId
+    let txObj = tx.toObject();
+    const oid = extractObjectIdString(txObj.category);
+    if (oid) {
+      const cat = await Category.findById(oid).lean().exec();
+      if (cat) txObj.category = cat;
+    } else {
+      if (txObj.category && typeof txObj.category === "object" && txObj.category.$oid) txObj.category = txObj.category.$oid;
+    }
+
+    res.status(201).json(txObj);
   } catch (err) {
+    console.error("POST /api/transactions error:", err);
     res.status(400).json({ error: err.message });
   }
 });
@@ -68,14 +136,25 @@ router.put("/:id", async (req, res) => {
     if (req.body.method !== undefined) updates.method = req.body.method;
     if (req.body.category !== undefined) {
       if (req.body.category === null) updates.category = null;
-      else if (mongoose.Types.ObjectId.isValid(req.body.category)) updates.category = mongoose.Types.ObjectId(req.body.category);
+      else if (typeof req.body.category === "string" && mongoose.Types.ObjectId.isValid(req.body.category)) updates.category = mongoose.Types.ObjectId(req.body.category);
       else updates.category = req.body.category;
     }
 
-    const tx = await Transaction.findByIdAndUpdate(req.params.id, updates, { new: true }).populate({ path: "category", model: Category });
+    const tx = await Transaction.findByIdAndUpdate(req.params.id, updates, { new: true }).lean().exec();
     if (!tx) return res.status(404).json({ error: "Not found" });
+
+    // try to populate category in response if it's an ObjectId
+    const oid = extractObjectIdString(tx.category);
+    if (oid) {
+      const cat = await Category.findById(oid).lean().exec();
+      if (cat) tx.category = cat;
+    } else {
+      if (tx.category && typeof tx.category === "object" && tx.category.$oid) tx.category = tx.category.$oid;
+    }
+
     res.json(tx);
   } catch (err) {
+    console.error("PUT /api/transactions/:id error:", err);
     res.status(400).json({ error: err.message });
   }
 });
@@ -85,10 +164,11 @@ router.put("/:id", async (req, res) => {
  */
 router.delete("/:id", async (req, res) => {
   try {
-    const tx = await Transaction.findByIdAndDelete(req.params.id);
+    const tx = await Transaction.findByIdAndDelete(req.params.id).lean().exec();
     if (!tx) return res.status(404).json({ error: "Not found" });
     res.json({ success: true });
   } catch (err) {
+    console.error("DELETE /api/transactions/:id error:", err);
     res.status(500).json({ error: err.message });
   }
 });
